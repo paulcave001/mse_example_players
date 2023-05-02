@@ -12,7 +12,13 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <link rel="stylesheet" href="">
         <!-- Shaka Player compiled library: -->
-        <script src="shaka-player/dist/shaka-player.compiled.js"></script>
+        <!-- <script src="shaka-player/dist/shaka-player.compiled.js"></script> -->
+        <!-- for non-UI builds: -->
+        <script src="https://ajax.googleapis.com/ajax/libs/shaka-player/4.3.6/shaka-player.compiled.js"></script>
+
+        <!-- or, for UI builds: -->
+        <!-- <script src="https://ajax.googleapis.com/ajax/libs/shaka-player/4.3.6/shaka-player.ui.js"></script>
+        <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/shaka-player/4.3.6/controls.css"> -->
         <style>
             body{
                 background-color: black;
@@ -29,10 +35,9 @@
             }
             
             video{
-                display: block;
-                margin: 0 auto;
-                /* width:100%; */
-                /* height:100%; */
+                position: fixed;
+                margin:0;
+                /* display: block; */
             }
 
             .hide{
@@ -53,7 +58,6 @@
             const manifestUri = 'https://storage.googleapis.com/shaka-demo-assets/angel-one/dash.mpd';
             const queryString = window.location.search;
             const urlParams = new URLSearchParams(queryString);
-            // const urlParams = queryString? new URLSearchParams(queryString):{};
             
             let srcUrl = urlParams.get("srcUrl") || manifestUri;
             let drm = urlParams.get("drm");
@@ -79,6 +83,7 @@
                 if (shaka.Player.isBrowserSupported()) {
                     // Everything looks good!
                     initPlayer();
+        
                 } else {
                     // This browser does not have the minimum set of APIs we need.
                     console.error('Browser not supported!');
@@ -90,6 +95,30 @@
                 video = document.createElement('video');
                 document.body.appendChild(video);
                 player = new shaka.Player(video);
+
+                video.onprogress = function(){
+                    playbackRetryCount = 0;
+                    isPlaybackError = false;
+                    errorElement.textContent = "";
+
+                    if(resumeTime){
+                        video.currentTime = resumeTime;
+                        resumeTime = 0;
+                    }
+
+                    if(playbackRetryCount){
+                        playbackRetryCount = 0;
+                    }
+                    video.onprogress = null;
+                }
+
+                video.ondurationchange = function(){
+                    duration = video.duration;
+                }
+
+                video.ontimeupdate = function(){
+                    if(video.currentTime) elapsedTime = video.currentTime;
+                }
 
                 var playerConfig = {
                     streaming:{
@@ -117,9 +146,6 @@
 
                 // Listen for error events.
                 player.addEventListener('error', onErrorEvent);
-                video.addEventListener('error', function(err){
-                    console.log(":::: video error", err);
-                });
 
                 // Try to load a manifest.
                 // This is an asynchronous process.
@@ -131,47 +157,30 @@
                         playbackRetryCount = 0;
                         isPlaybackError = false;
                         errorElement.textContent = "";
-
-                        if (video.requestFullscreen) {
-                            video.requestFullscreen();
-                        }
-
-                        // trying to set time to last viewed point but not working
-                        if(!isNaN(resumeTime) && resumeTime > 0){
-                            console.log("::::: try set current time to", resumeTime);
-                            video.currentTime = resumeTime;
-
-                            resumeTime = 0;
-                        }
                     });
 
-                    video.ontimeupdate = function(){
-                        elapsedTime = video.currentTime;
-
-                        if(!duration){
-                            duration = video.duration;
-                        }
-                    }
-
                 } catch (e) {
+                    console.log(":::: catch error", e);
                     // onError is executed if the asynchronous load fails.
-                    onError(e);
+                    onErrorEvent(e);
                 }
             }
 
             function keyDown(evt) {
-                var key = evt.key || evt.code;
+                let key = evt.key || evt.code;
 
                 switch(key){
                     case "Enter":
                         // only re-initialise if error
-                        if(isPlaybackError && playbackRetryCount < maxRetries){
-                            playbackRetryCount++;
-                            initPlayer();
+                        if(isPlaybackError){
+                            if(playbackRetryCount < maxRetries){
+                                playbackRetryCount++;
+                                initPlayer();
 
-                        }else if(playbackRetryCount > 0){
-                            window.close();
-                        }
+                            }else{
+                                window.close();
+                            }
+                        }else video.play();
                     break;
                     case "MediaFastForward":
                         if(duration - elapsedTime > 10)
@@ -196,12 +205,17 @@
             function destroyPlayer(){
                 player.destroy();
 
+                video.ontimeupdate = null;
+                video.ondurationchange = null;
+                video.onprogress = null;
+
                 // video.onplay = null;
                 document.body.removeChild(video);
             }
 
 
             function onErrorEvent(event) {
+                // console.log(":::: onErrorEvent", event);
                 let detail = event.detail;
                 
                 if(detail.severity === shaka.util.Error.Severity.CRITICAL){
