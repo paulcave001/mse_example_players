@@ -1,0 +1,181 @@
+
+<!-- saved from url=(0091)https://horizonapps.dmdsdp.com/nonCustApps/onesdkTestHarness/tests/dashjs/devAppDashJs.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+	<title>dash.js library example for Horizon</title>
+
+	<script src="./dash.js library example for Horizon_files/dash_2-9-3.all.debug.js"></script>
+	<!-- <script src="https://cdn.dashjs.org/v2.9.3/dash.all.min.js"></script> -->
+	<!-- <script src="https://cdn.dashjs.org/v2.9.3/dash.all.debug.js"></script> -->
+
+	<!-- mss is used for Smooth Streaming -->
+	<script src="./dash.js library example for Horizon_files/dash_2-9-3.mss.debug.js"></script>
+	<!-- <script src="https://cdn.dashjs.org/v2.9.3/dash.mss.debug.js"></script> -->
+
+	<script src="./dash.js library example for Horizon_files/common.js"></script>
+
+	<script>
+		var VERSION = "1.0.0";
+
+		var config = parseConfig();
+
+		const errorElement = document.getElementById("errorDialogue");
+
+
+		/**
+		 * Set up dash media player, set logging to debug and add DRM if configured
+		 */
+		function start() {
+			console.log("config", config);
+			console.log("dash.js example version: " + VERSION);
+			var video = document.querySelector("video");
+			var player = dashjs.MediaPlayer().create();			
+			window.player = player;
+			console.log("dash.js version: " + player.getVersion());
+
+			// player.addEventListener('error', function(err){
+			// 	console.log(":::: player error", err);
+			// });
+
+
+			video.addEventListener('error', function(err){
+				// console.log(":::: video error", err);
+				console.log(":::: video err.target.error.code", err.target.error.code);
+				console.log(":::: video err.target.error", err.target.error);
+				// video playback failed - show a message saying why
+				let messageText;
+				switch (err.target.error.code) {
+					case err.target.error.MEDIA_ERR_ABORTED:
+					messageText = 'You aborted the video playback.';
+					break;
+					case err.target.error.MEDIA_ERR_NETWORK:
+					messageText = 'A network error caused the video download to fail part-way.';
+					break;
+					case err.target.error.MEDIA_ERR_DECODE:
+					messageText = 'The video playback was aborted due to a corruption problem or because the video used features your browser did not support.';
+					break;
+					case err.target.error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+					messageText = 'The video could not be loaded, either because the server or network failed or because the format is not supported.';
+					break;
+					case 5: // MEDIA_ERR_ENCRYPTED (not found)
+					messageText = 'Subsample decryption failed, most likely due to hdmi cable "falling out"';
+					break;
+					default:
+					messageText = 'An unknown error occurred.';
+				}
+
+				errorElement.textContent = messageText;
+
+				console.log(":::: messageText",messageText);
+			});
+
+			// Set log level to debug if param passed in. Do not enable debug for live use.
+			if (config.libDebug) {
+				player.getDebug().setLogLevel(dashjs.Debug.LOG_LEVEL_DEBUG);
+			}
+
+			player.initialize(video, config.srcUrl, true);
+
+			if (config.drm) {
+				var protectionData = {};
+				protectionData[config.drm] = {
+					"serverURL": config.licenseServerUrl
+				};
+				player.setProtectionData(protectionData);
+			}
+
+			// var videoCodecs = document.querySelector("#videoCodecs");
+			// var audioCodecs = document.querySelector("#audioCodecs");
+
+			// player.on(dashjs.MediaPlayer.events.QUALITY_CHANGE_RENDERED, getCurCodec);
+
+			// function getMediaInfo(processors, type) {
+			// 	const ln = processors.length;
+
+			// 	for (let i = 0; i < ln; i++) {
+			// 		if (processors[i].getType() === type) {
+			// 			return processors[i].getMediaInfo();
+			// 		}
+			// 	}
+
+			// 	return null;
+			// }
+
+
+			// function getCurCodec() {
+
+			// 	var stream = player.getActiveStream();
+
+			// 	var processors = stream.getProcessors();
+
+			// 	var videoMediaType = getMediaInfo(processors, "video");
+			// 	var audioMediaType = getMediaInfo(processors, "audio");
+
+			// 	console.log("videoMediaType", videoMediaType);
+			// 	if (videoMediaType) {
+			// 		videoCodecs.textContent = JSON.stringify(videoMediaType.codec);
+			// 		console.log(videoMediaType.mimeType + ' ' + videoMediaType.codec);
+			// 	}
+
+			// 	console.log("audioMediaType", audioMediaType);
+			// 	if (audioMediaType) {
+			// 		audioCodecs.textContent = JSON.stringify(audioMediaType.codec);
+			// 		console.log(audioMediaType.mimeType + ' ' + audioMediaType.codec);
+			// 	}
+			// }
+
+
+			// Not needed, as video.play is called on MANIFEST_PARSED.
+			// Probably only needed if playing an encrypted asset.
+			window.addEventListener("keydown", function() {
+				console.log("clicked");
+				video.play();
+			}, false);
+		}
+	</script>
+
+	<style>
+		body {
+			margin: 0;
+			background-color: black;
+			width:100%;
+			height:100%;
+		}
+
+		#infoPanel {
+			position: absolute;
+			color: white;
+			background-color: rgba(0, 0, 0, 0.7);
+			font-size: 30px;
+		}
+
+		video {
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+		}
+            
+		#errorDialogue{
+			position: absolute;
+			color: whitesmoke;
+			font-size: 120px;
+			width:1650px;
+			height:450px;
+		}
+	</style>
+</head>
+
+<body onload="start();">
+	<div>
+		<!-- <div id="infoPanel">
+			VIDEO CODECS: <span id="videoCodecs"></span><br>
+			AUDIO CODECS: <span id="audioCodecs"></span><br>
+		</div> -->
+		<video preload="auto"></video>
+
+		<div></div><p id="errorDialogue"></p></div>
+	</div>
+
+
+
+</body></html>

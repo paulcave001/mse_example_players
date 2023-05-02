@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
+<!--[if gt IE 8]>      <html class="no-js"> <!--<![endif]-->
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title></title>
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="">
+        <!-- Shaka Player compiled library: -->
+        <script src="shaka-player/dist/shaka-player.compiled.js"></script>
+        <style>
+            body{
+                background-color: black;
+                width:100%;
+                height:100%;
+            }
+            
+            #errorDialogue{
+                position: absolute;
+                color: whitesmoke;
+                font-size: 120px;
+                width:1650px;
+                height:450px;
+            }
+            
+            video{
+                display: block;
+                margin: 0 auto;
+                /* width:100%; */
+                /* height:100%; */
+            }
+
+            .hide{
+                visibility: hidden;
+            }
+        </style>
+        <!-- Your application source: -->
+  </head>
+    <body>
+        <!-- <video id="video" poster="//shaka-player-demo.appspot.com/assets/poster.jpg"
+            controls autoplay></video> -->
+
+        <div></div><p id="errorDialogue"></p></div>
+            
+        <!-- <script src="" async defer></script> -->
+        <script type="text/javascript" async defer>
+            const errorElement = document.getElementById("errorDialogue");
+            const manifestUri = 'https://storage.googleapis.com/shaka-demo-assets/angel-one/dash.mpd';
+            const queryString = window.location.search;
+            const urlParams = new URLSearchParams(queryString);
+            // const urlParams = queryString? new URLSearchParams(queryString):{};
+            
+            let srcUrl = urlParams.get("srcUrl") || manifestUri;
+            let drm = urlParams.get("drm");
+            let licenseServerUrl = urlParams.get("licenseServerUrl");
+
+            let player;
+            let video;
+            let duration = 0;
+            let elapsedTime = 0;
+            let resumeTime;
+            let playbackRetryCount = 0;
+            let maxRetries = 3;
+            let isPlaybackError = false;
+
+
+            document.addEventListener('keydown', keyDown );
+            
+            function initApp() {
+                // Install built-in polyfills to patch browser incompatibilities.
+                shaka.polyfill.installAll();
+
+                // Check to see if the browser supports the basic APIs Shaka needs.
+                if (shaka.Player.isBrowserSupported()) {
+                    // Everything looks good!
+                    initPlayer();
+                } else {
+                    // This browser does not have the minimum set of APIs we need.
+                    console.error('Browser not supported!');
+                }
+            }
+
+            async function initPlayer() {
+                // Create a Player instance.
+                video = document.createElement('video');
+                document.body.appendChild(video);
+                player = new shaka.Player(video);
+
+                var playerConfig = {
+                    streaming:{
+                        bufferingGoal: 5,
+                        rebufferingGoal: 2,
+                        bufferBehind: 1
+                    },
+                    manifest:{
+                        dash:{
+                            ignoreMinBufferTime:true
+                        }
+                    }
+                };
+                if (drm && licenseServerUrl) {
+                    playerConfig.drm = {
+                        servers: {}
+                    };
+
+                    playerConfig.drm.servers[drm] = licenseServerUrl;
+                    player.configure(playerConfig);
+                }
+
+                // Attach player to the window to make it easy to access in the JS console.
+                window.player = player;
+
+                // Listen for error events.
+                player.addEventListener('error', onErrorEvent);
+                video.addEventListener('error', function(err){
+                    console.log(":::: video error", err);
+                });
+
+                // Try to load a manifest.
+                // This is an asynchronous process.
+                try {
+                    await player.load(srcUrl);
+
+                    // This runs if the asynchronous load is successful.
+                    video.play().then(function(){ // in newer browsers play returns a promise if successful. A work around might be needed for older browsers
+                        playbackRetryCount = 0;
+                        isPlaybackError = false;
+                        errorElement.textContent = "";
+
+                        if (video.requestFullscreen) {
+                            video.requestFullscreen();
+                        }
+
+                        // trying to set time to last viewed point but not working
+                        if(!isNaN(resumeTime) && resumeTime > 0){
+                            console.log("::::: try set current time to", resumeTime);
+                            video.currentTime = resumeTime;
+
+                            resumeTime = 0;
+                        }
+                    });
+
+                    video.ontimeupdate = function(){
+                        elapsedTime = video.currentTime;
+
+                        if(!duration){
+                            duration = video.duration;
+                        }
+                    }
+
+                } catch (e) {
+                    // onError is executed if the asynchronous load fails.
+                    onError(e);
+                }
+            }
+
+            function keyDown(evt) {
+                var key = evt.key || evt.code;
+
+                switch(key){
+                    case "Enter":
+                        // only re-initialise if error
+                        if(isPlaybackError && playbackRetryCount < maxRetries){
+                            playbackRetryCount++;
+                            initPlayer();
+
+                        }else if(playbackRetryCount > 0){
+                            window.close();
+                        }
+                    break;
+                    case "MediaFastForward":
+                        if(duration - elapsedTime > 10)
+                            video.currentTime += 10;
+                    break;
+                    case "MediaRewind":
+                        if(video.currentTime > 10)
+                            video.currentTime -= 10;
+                        else video.currentTime = 0;
+                    break;
+                    case "MediaPlayPause":
+                        if(video.paused)
+                            video.play();
+                        else video.pause();
+                    break;
+                    case "Escape":
+                        window.close();
+                    break;
+                }
+            }
+
+            function destroyPlayer(){
+                player.destroy();
+
+                // video.onplay = null;
+                document.body.removeChild(video);
+            }
+
+
+            function onErrorEvent(event) {
+                let detail = event.detail;
+                
+                if(detail.severity === shaka.util.Error.Severity.CRITICAL){
+                    let code = detail.code;
+                    let messageText = "PLAYBACK ERROR";
+                    isPlaybackError = true;
+                    destroyPlayer();
+
+                    resumeTime = elapsedTime;
+
+                    switch(code){
+                        case 3016:
+                            if(!playbackRetryCount){
+                                messageText = "Something went wrong. Press OK to return to playback";
+
+                            }else if(playbackRetryCount < maxRetries){
+                                messageText = "That didn't work. Please try again, or press BACK to exit";
+                            }else{
+                                messageText = "Sorry, this isn't happening. Please exit and try again later.";
+                            }
+                        break;
+
+                        case 3015:
+                            messageText = "Something went wrong. Please try again later.";
+
+                    }
+                    
+                    errorElement.textContent = messageText;
+                }
+                
+            }
+
+            document.addEventListener('DOMContentLoaded', initApp);
+        </script>
+    </body>
+</html>
