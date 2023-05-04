@@ -1,0 +1,230 @@
+<!-- This is an example of using the hls.js library to play HLS media on a Horizon STB.
+	 This example can be used to play assets with or without DRM. Horizon supports PlayReady and Widevine DRM.
+	 The DRM data can be either specified in params to the example or included in the manifest or the stream.
+	 Refer to supplied documentation for supported video media.
+
+	 Takes url parameters:
+	      srcUrl {String} - URL of the media
+	      drm {String} - DRM to use, eg. "com.microsoft.playready"
+	      licenseServerUrl {String} - URL of the license server
+	      libDebug {Boolean} [false] - if true the HLS library debug is sent to the console
+ -->
+<html>
+
+<head>
+	<title>hls.js library example for Horizon</title>
+
+	<script src="https://cdn.jsdelivr.net/npm/hls.js@0.13.2/dist/hls.min.js"></script>
+	<script src="../common/common.js"></script>
+	<script src="../onesdk/dist/stb/onesdk.js"></script>
+
+	<style>
+		body {
+			margin: 0;
+		}
+
+		video {
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+		}
+		
+		#errorDialogue{
+			position: absolute;
+			color: whitesmoke;
+			font-size: 120px;
+			width:1650px;
+			height:450px;
+			margin:140px;
+			top:0;
+			left:0;
+			border: 2px solid lightgray;
+			border-radius: 9px;;
+			display: none;
+		}
+
+		#errorDialogue.show{
+			display: block;
+		}
+	</style>
+</head>
+
+<body onload="start();">
+	<div>
+		<video></video>
+	</div>
+
+	<div></div><p id="errorDialogue"></p></div>
+
+	<script>
+		var VERSION = "1.1.0";
+
+		let playbackRetryCount = 0;
+
+		const errorElement = document.getElementById("errorDialogue");
+
+		console.log(":::: errorElement", errorElement);
+
+		var config = {};
+		location.search.substring(1).split('&').forEach(function(nvp) {
+			var name = nvp.substr(0, nvp.indexOf('='));
+			var value = decodeURIComponent(nvp.substr(nvp.indexOf('=') + 1));
+			if (value === "false") value = false;
+			if (value === "true") value = true;
+			if (name) config[name] = value;
+		});
+
+		onesdk.init();
+		
+
+		function handleMediaError(hls) {
+			var now = performance.now();
+			if (!recoverDecodingErrorDate || (now - recoverDecodingErrorDate) > 3000) {
+				recoverDecodingErrorDate = performance.now();
+				var msg = "trying to recover from media Error ..."
+				console.warn(msg);
+				hls.recoverMediaError();
+			} else {
+				if (!recoverSwapAudioCodecDate || (now - recoverSwapAudioCodecDate) > 3000) {
+					recoverSwapAudioCodecDate = performance.now();
+					var msg = "trying to swap Audio Codec and recover from media Error ..."
+					console.warn(msg);
+					hls.swapAudioCodec();
+					hls.recoverMediaError();
+				} else {
+					var msg = "cannot recover, last media error recovery failed ..."
+					console.error(msg);
+				}
+			}
+		}
+
+		/**
+		 * Set up HLS player, set logging level and add DRM if configured
+		 */
+		function start() {
+			console.log("config", config);
+			console.log("hls.js example version: " + VERSION);
+			var video = document.querySelector("video");
+
+			if (Hls.isSupported()) {
+				var hls = new Hls({
+					enableWorker: false,
+					debug: config.libDebug ? true : false,
+				});
+				
+				console.log("hls.js version: " + Hls.version);
+
+				hls.attachMedia(video); // binds videoElement & HLS instance, creates MediaSource & sets it as video source
+
+				hls.on(Hls.Events.MEDIA_ATTACHED, function() {
+					console.log("HLS media attached");
+
+					hls.loadSource(config.srcUrl); // load manifest
+
+					hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
+						console.log("HLS manifest parsed");
+						video.play();
+					});
+				});
+			} else {
+				console.error("HLS is not supported");
+			}
+
+			// Register for HLS error events
+			// data: { type : error type, details : error details, fatal : is error fatal or not, other error specific data }
+			hls.on(Hls.Events.ERROR, function(event, data) {
+				console.log("HLS error: " + event + ", " + data.type + ", " + data.details + ", " + data.fatal + ", " + data.other);
+
+				if (data.fatal) {
+					switch (data.type) {
+					case Hls.ErrorTypes.MEDIA_ERROR:
+						handleMediaError(hls);
+						break;
+					case Hls.ErrorTypes.NETWORK_ERROR:
+						console.error("network error ...");
+						break;
+					default:
+						console.error("unrecoverable error");
+						hls.destroy();
+						break;
+					}
+				}
+			});
+
+			window.addEventListener(onesdk.EVENT_TYPES.EVENT_CONNECTED_DISPLAY_CHANGED, function() {
+				console.log("::::: EVENT_CONNECTED_DISPLAY_CHANGED");
+				let messageText;
+
+				if(!playbackRetryCount)
+					messageText = 'Oops. Something went wrong. Press OK to try again.';
+				else if(playbackRetryCount < maxRetries)
+					messageText = 'That still didn\'t work. Press OK to try again or back to exit.';
+				else
+					messageText = 'Sorry, that still didn\'t work. Please press OK to exit and try again later.';
+
+				showError(messageText);
+			});
+
+			function showError(text){
+				errorElement.textContent = text;
+
+				errorElement.classList.add("show");
+			}
+
+			function hideError(){
+				errorElement.textContent = "";
+
+				errorElement.classList.remove("show");
+			}
+
+			function onKeyDown(evt) {
+				let key = evt.key || evt.code;
+
+                switch(key){
+                    case "Enter":
+                        // only re-initialise if error
+						if(isPlaybackError){
+							if(playbackRetryCount < maxRetries){
+								playbackRetryCount++;
+
+								video.ontimeupdate = null;
+								video.ondurationchange = null;
+								video.onprogress = null;
+								video.onerror = null;
+								
+								document.body.removeChild(video);
+								
+								window.removeEventListener("keydown", onKeyDown);
+								start(currentTime);
+								hideError();
+								
+							}else{
+								window.close();
+							}
+						}
+                    break;
+                    case "MediaFastForward":
+                        if(duration - video.currentTime > 10)
+                            video.currentTime += 10;
+                    break;
+                    case "MediaRewind":
+                        if(video.currentTime > 10)
+                            video.currentTime -= 10;
+                        else video.currentTime = 0;
+                    break;
+                    case "MediaPlayPause":
+                        if(video.paused)
+                            video.play();
+                        else video.pause();
+                    break;
+                }
+			};
+
+
+			window.addEventListener("keydown", onKeyDown, false);
+		}
+	</script>
+</body>
+
+</html>

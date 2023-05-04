@@ -1,0 +1,229 @@
+
+<!-- saved from url=(0091)https://horizonapps.dmdsdp.com/nonCustApps/onesdkTestHarness/tests/dashjs/devAppDashJs.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+	<title>dash.js library example for Horizon</title>
+
+	<!-- <script src="https://cdn.dashjs.org/v2.9.3/dash.all.min.js"></script> -->
+	<script src="https://cdn.dashjs.org/v2.9.3/dash.all.debug.js"></script>
+
+	<!-- mss is used for Smooth Streaming -->
+	<script src="https://cdn.dashjs.org/v2.9.3/dash.mss.debug.js"></script>
+
+	<script src="../common/common.js"></script>
+
+	<style>
+		body {
+			margin: 0;
+			background-color: black;
+			width:100%;
+			height:100%;
+		}
+
+		#infoPanel {
+			position: absolute;
+			color: white;
+			background-color: rgba(0, 0, 0, 0.7);
+			font-size: 30px;
+		}
+
+		video {
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+		}
+            
+		#errorDialogue{
+			position: absolute;
+			color: whitesmoke;
+			font-size: 120px;
+			width:1650px;
+			height:450px;
+			margin:140px;
+			top:0;
+			left:0;
+			border: 2px solid lightgray;
+			border-radius: 9px;;
+			display: none;
+		}
+
+		#errorDialogue.show{
+			display: block;
+		}
+	</style>
+</head>
+
+<body onload="start();">
+	<div>
+		<!-- <video preload="auto"></video> -->
+	</div>
+	<div></div><p id="errorDialogue"></p></div>
+
+	<script>
+		var VERSION = "1.0.0";
+
+		let config = parseConfig();
+
+		const errorElement = document.getElementById("errorDialogue");
+
+		let playbackRetryCount = 0;
+		let maxRetries = 3;
+		let isPlaybackError = false;
+		let video;
+		let player;
+		let currentTime = 0;
+		let duration = 0;
+		// let elapsedTime = 0;
+		// let resumeTime = 0;
+
+
+		/**
+		 * Set up dash media player, set logging to debug and add DRM if configured
+		 */
+		function start(resumeTime) {
+			console.log("config", config);
+			console.log("dash.js example version: " + VERSION);
+			isPlaybackError = false;
+
+			video = document.createElement('video');
+			document.body.appendChild(video);
+			player = dashjs.MediaPlayer().create();			
+			window.player = player;
+
+			if(playbackRetryCount){
+				let clearPlaybackRetries = function(){
+					playbackRetryCount = 0;
+					video.removeEventListener("progress", clearPlaybackRetries);
+				}
+				video.addEventListener("progress", clearPlaybackRetries);
+			}
+			
+			video.onprogress = function(){
+				if(resumeTime){
+					video.currentTime = resumeTime;
+					resumeTime = 0;
+				}
+
+				if(playbackRetryCount){
+					playbackRetryCount = 0;
+				}
+				video.onprogress = null;
+			}
+
+			video.ondurationchange = function(){
+				duration = video.duration;
+			}
+
+			video.ontimeupdate = function(){
+				if(video.currentTime) currentTime = video.currentTime;
+			}
+
+			video.onerror = function(err){
+				isPlaybackError = true;
+				// video playback failed - show a message saying why
+				let messageText;
+				switch (err.target.error.code) {
+					case err.target.error.MEDIA_ERR_ABORTED:
+					messageText = 'You aborted the video playback.';
+					break;
+					case err.target.error.MEDIA_ERR_NETWORK:
+					messageText = 'A network error caused the video download to fail part-way.';
+					break;
+					case err.target.error.MEDIA_ERR_DECODE:
+					messageText = 'The video playback was aborted due to a corruption problem or because the video used features your browser did not support.';
+					break;
+					case err.target.error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+					messageText = 'The video could not be loaded, either because the server or network failed or because the format is not supported.';
+					break;
+					case 5: // MEDIA_ERR_ENCRYPTED (not found)
+					console.log("::::: ERROR 5: playbackRetryCount", playbackRetryCount, ":", !!playbackRetryCount);
+					if(!playbackRetryCount)
+						messageText = 'Oops. Something went wrong. Press OK to try again.';
+					else if(playbackRetryCount < maxRetries)
+						messageText = 'That still didn\'t work. Press OK to try again or back to exit.';
+					else
+						messageText = 'Sorry, that still didn\'t work. Please press OK to exit and try again later.';
+					break;
+					default:
+					messageText = 'An unknown error occurred.';
+				}
+
+				showError(messageText);
+			};
+			
+			function showError(text){
+				errorElement.textContent = text;
+
+				errorElement.classList.add("show");
+			}
+
+			function hideError(){
+				errorElement.textContent = "";
+
+				errorElement.classList.remove("show");
+			}
+
+			// Set log level to debug if param passed in. Do not enable debug for live use.
+			if (config.libDebug) {
+				player.getDebug().setLogLevel(dashjs.Debug.LOG_LEVEL_DEBUG);
+			}
+
+			player.initialize(video, config.srcUrl, true);
+
+			if (config.drm) {
+				var protectionData = {};
+				protectionData[config.drm] = {
+					"serverURL": config.licenseServerUrl
+				};
+				player.setProtectionData(protectionData);
+			}
+
+
+			window.addEventListener("keydown", onKeyDown, false);
+			
+			function onKeyDown(evt) {
+				let key = evt.key || evt.code;
+
+                switch(key){
+                    case "Enter":
+                        // only re-initialise if error
+						if(isPlaybackError){
+							if(playbackRetryCount < maxRetries){
+								playbackRetryCount++;
+
+								video.ontimeupdate = null;
+								video.ondurationchange = null;
+								video.onprogress = null;
+								video.onerror = null;
+								
+								document.body.removeChild(video);
+								
+								window.removeEventListener("keydown", onKeyDown);
+								start(currentTime);
+								hideError();
+								
+							}else{
+								window.close();
+							}
+						}
+                    break;
+                    case "MediaFastForward":
+                        if(duration - video.currentTime > 10)
+                            video.currentTime += 10;
+                    break;
+                    case "MediaRewind":
+                        if(video.currentTime > 10)
+                            video.currentTime -= 10;
+                        else video.currentTime = 0;
+                    break;
+                    case "MediaPlayPause":
+                        if(video.paused)
+                            video.play();
+                        else video.pause();
+                    break;
+                }
+			};
+		}
+	</script>
+
+</body></html>

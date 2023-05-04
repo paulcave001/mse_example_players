@@ -3,15 +3,17 @@
 <html><head><meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
 	<title>dash.js library example for Horizon</title>
 
-	<script src="./dash.js library example for Horizon_files/dash_2-9-3.all.debug.js"></script>
+	<!-- <script src="../common/dash_2-9-3.all.debug.js"></script> -->
 	<!-- <script src="https://cdn.dashjs.org/v2.9.3/dash.all.min.js"></script> -->
-	<!-- <script src="https://cdn.dashjs.org/v2.9.3/dash.all.debug.js"></script> -->
+	<script src="https://cdn.dashjs.org/v2.9.3/dash.all.debug.js"></script>
 
 	<!-- mss is used for Smooth Streaming -->
-	<script src="./dash.js library example for Horizon_files/dash_2-9-3.mss.debug.js"></script>
-	<!-- <script src="https://cdn.dashjs.org/v2.9.3/dash.mss.debug.js"></script> -->
+	<!-- <script src="../common/dash_2-9-3.mss.debug.js"></script> -->
+	<script src="https://cdn.dashjs.org/v2.9.3/dash.mss.debug.js"></script>
 
-	<script src="./dash.js library example for Horizon_files/common.js"></script>
+	<script src="../common/common.js"></script>
+
+	<script src="../onesdk/dist/stb/onesdk.js?001"></script>
 
 	<style>
 		body {
@@ -78,6 +80,33 @@
 		// let elapsedTime = 0;
 		// let resumeTime = 0;
 
+		onesdk.init();
+
+		window.addEventListener(onesdk.EVENT_TYPES.EVENT_CONNECTED_DISPLAY_CHANGED, function() {
+			let messageText;
+
+			if(!playbackRetryCount)
+				messageText = 'Oops. Something went wrong. Press OK to try again.';
+			else if(playbackRetryCount < maxRetries)
+				messageText = 'That still didn\'t work. Press OK to try again or back to exit.';
+			else
+				messageText = 'Sorry, that still didn\'t work. Please press OK to exit and try again later.';
+
+			showError(messageText);
+		});
+
+		function showError(text){
+			errorElement.textContent = text;
+
+			errorElement.classList.add("show");
+		}
+
+		function hideError(){
+			errorElement.textContent = "";
+
+			errorElement.classList.remove("show");
+		}
+
 
 		/**
 		 * Set up dash media player, set logging to debug and add DRM if configured
@@ -121,49 +150,8 @@
 			}
 
 			video.onerror = function(err){
-				isPlaybackError = true;
-				// video playback failed - show a message saying why
-				let messageText;
-				switch (err.target.error.code) {
-					case err.target.error.MEDIA_ERR_ABORTED:
-					messageText = 'You aborted the video playback.';
-					break;
-					case err.target.error.MEDIA_ERR_NETWORK:
-					messageText = 'A network error caused the video download to fail part-way.';
-					break;
-					case err.target.error.MEDIA_ERR_DECODE:
-					messageText = 'The video playback was aborted due to a corruption problem or because the video used features your browser did not support.';
-					break;
-					case err.target.error.MEDIA_ERR_SRC_NOT_SUPPORTED:
-					messageText = 'The video could not be loaded, either because the server or network failed or because the format is not supported.';
-					break;
-					case 5: // MEDIA_ERR_ENCRYPTED (not found)
-					console.log("::::: ERROR 5: playbackRetryCount", playbackRetryCount, ":", !!playbackRetryCount);
-					if(!playbackRetryCount)
-						messageText = 'Oops. Something went wrong. Press OK to try again.';
-					else if(playbackRetryCount < maxRetries)
-						messageText = 'That still didn\'t work. Press OK to try again or back to exit.';
-					else
-						messageText = 'Sorry, that still didn\'t work. Please press OK to exit and try again later.';
-					break;
-					default:
-					messageText = 'An unknown error occurred.';
-				}
-
-				showError(messageText);
+				console.log(":::: video error", err);
 			};
-			
-			function showError(text){
-				errorElement.textContent = text;
-
-				errorElement.classList.add("show");
-			}
-
-			function hideError(){
-				errorElement.textContent = "";
-
-				errorElement.classList.remove("show");
-			}
 
 			// Set log level to debug if param passed in. Do not enable debug for live use.
 			if (config.libDebug) {

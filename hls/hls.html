@@ -1,0 +1,136 @@
+<!-- This is an example of using the hls.js library to play HLS media on a Horizon STB.
+	 This example can be used to play assets with or without DRM. Horizon supports PlayReady and Widevine DRM.
+	 The DRM data can be either specified in params to the example or included in the manifest or the stream.
+	 Refer to supplied documentation for supported video media.
+
+	 Takes url parameters:
+	      srcUrl {String} - URL of the media
+	      drm {String} - DRM to use, eg. "com.microsoft.playready"
+	      licenseServerUrl {String} - URL of the license server
+	      libDebug {Boolean} [false] - if true the HLS library debug is sent to the console
+ -->
+<html>
+
+<head>
+	<title>hls.js library example for Horizon</title>
+
+	<script src="https://cdn.jsdelivr.net/npm/hls.js@0.13.2/dist/hls.min.js"></script>
+	<script src="../common/common.js"></script>
+
+	<script>
+		var VERSION = "1.1.0";
+
+		var config = {};
+		location.search.substring(1).split('&').forEach(function(nvp) {
+			var name = nvp.substr(0, nvp.indexOf('='));
+			var value = decodeURIComponent(nvp.substr(nvp.indexOf('=') + 1));
+			if (value === "false") value = false;
+			if (value === "true") value = true;
+			if (name) config[name] = value;
+		});
+
+		function handleMediaError(hls) {
+			var now = performance.now();
+			if (!recoverDecodingErrorDate || (now - recoverDecodingErrorDate) > 3000) {
+				recoverDecodingErrorDate = performance.now();
+				var msg = "trying to recover from media Error ..."
+				console.warn(msg);
+				hls.recoverMediaError();
+			} else {
+				if (!recoverSwapAudioCodecDate || (now - recoverSwapAudioCodecDate) > 3000) {
+					recoverSwapAudioCodecDate = performance.now();
+					var msg = "trying to swap Audio Codec and recover from media Error ..."
+					console.warn(msg);
+					hls.swapAudioCodec();
+					hls.recoverMediaError();
+				} else {
+					var msg = "cannot recover, last media error recovery failed ..."
+					console.error(msg);
+				}
+			}
+		}
+
+		/**
+		 * Set up HLS player, set logging level and add DRM if configured
+		 */
+		function start() {
+			console.log("config", config);
+			console.log("hls.js example version: " + VERSION);
+			var video = document.querySelector("video");
+
+			if (Hls.isSupported()) {
+				var hls = new Hls({
+					enableWorker: false,
+					debug: config.libDebug ? true : false,
+				});
+				
+				console.log("hls.js version: " + Hls.version);
+
+				hls.attachMedia(video); // binds videoElement & HLS instance, creates MediaSource & sets it as video source
+
+				hls.on(Hls.Events.MEDIA_ATTACHED, function() {
+					console.log("HLS media attached");
+
+					hls.loadSource(config.srcUrl); // load manifest
+
+					hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
+						console.log("HLS manifest parsed");
+						video.play();
+					});
+				});
+			} else {
+				console.error("HLS is not supported");
+			}
+
+			// Register for HLS error events
+			// data: { type : error type, details : error details, fatal : is error fatal or not, other error specific data }
+			hls.on(Hls.Events.ERROR, function(event, data) {
+				console.log("HLS error: " + event + ", " + data.type + ", " + data.details + ", " + data.fatal + ", " + data.other);
+
+				if (data.fatal) {
+					switch (data.type) {
+					case Hls.ErrorTypes.MEDIA_ERROR:
+						handleMediaError(hls);
+						break;
+					case Hls.ErrorTypes.NETWORK_ERROR:
+						console.error("network error ...");
+						break;
+					default:
+						console.error("unrecoverable error");
+						hls.destroy();
+						break;
+					}
+				}
+			});
+
+
+			// Not needed, as video.play is called on MANIFEST_PARSED.
+			// Probably only needed if playing an encrypted asset.
+			window.addEventListener("keydown", function() {
+				console.log("clicked");
+				video.play();
+			}, false);
+		}
+	</script>
+
+	<style>
+		body {
+			margin: 0;
+		}
+
+		video {
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+		}
+	</style>
+</head>
+
+<body onload="start();">
+	<div>
+		<video></video>
+	</div>
+</body>
+
+</html>
