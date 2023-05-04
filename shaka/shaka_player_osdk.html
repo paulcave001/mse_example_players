@@ -11,8 +11,6 @@
         <meta name="description" content="">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <link rel="stylesheet" href="">
-        <!-- for non-UI builds: -->
-        <script src="https://ajax.googleapis.com/ajax/libs/shaka-player/4.3.6/shaka-player.compiled.js"></script>
         <style>
             body{
                 background-color: black;
@@ -46,7 +44,10 @@
 
         <div></div><p id="errorDialogue"></p></div>
             
-        <!-- <script src="" async defer></script> -->
+
+        <!-- for non-UI builds: -->
+        <script src="https://ajax.googleapis.com/ajax/libs/shaka-player/4.3.6/shaka-player.compiled.js"></script>
+        <script src="../onesdk/dist/stb/onesdk.js" async defer></script>
         <script type="text/javascript" async defer>
             const errorElement = document.getElementById("errorDialogue");
             const manifestUri = 'https://storage.googleapis.com/shaka-demo-assets/angel-one/dash.mpd';
@@ -75,6 +76,8 @@
                 // Install built-in polyfills to patch browser incompatibilities.
                 shaka.polyfill.installAll();
 
+                onesdk.init();
+
                 // Check to see if the browser supports the basic APIs Shaka needs.
                 if (shaka.Player.isBrowserSupported()) {
                     // Everything looks good!
@@ -84,6 +87,17 @@
                     // This browser does not have the minimum set of APIs we need.
                     console.error('Browser not supported!');
                 }
+
+                console.log(":::: onesdk", onesdk);
+                console.log(":::: onesdk.EVENT_TYPES.EVENT_CONNECTED_DISPLAY_CHANGED", onesdk.EVENT_TYPES.EVENT_CONNECTED_DISPLAY_CHANGED);
+                // console.log(":::: onesdk.EVENT_TYPES.EVENT_CONNECTED_DISPLAY_CHANGED", onesdk.EVENT_TYPES.EVENT_CONNECTED_DISPLAY_CHANGED);
+
+                // window.addEventListener(onesdk.EVENT_TYPES.EVENT_CONNECTED_DISPLAY_CHANGED, function(e) {
+                window.addEventListener("EVENT_CONNECTED_DISPLAY_CHANGED", function(e) {
+                        console.log("Received EVENT_CONNECTED_DISPLAY_CHANGED", e);
+                        // tableUtil.addRow("EVENT_CONNECTED_DISPLAY_CHANGED", e.detail);
+                    }
+                );
             }
 
             async function initPlayer() {

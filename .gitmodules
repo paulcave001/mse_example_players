@@ -1,0 +1,3 @@
+[submodule "onesdk"]
+	path = onesdk
+	url = https://github.com/LibertyGlobal/OneSDK.git
