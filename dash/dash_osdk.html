@@ -75,7 +75,7 @@
 		let isPlaybackError = false;
 		let video;
 		let player;
-		let currentTime = 0;
+		let elapsedTime = 0;
 		let duration = 0;
 		// let elapsedTime = 0;
 		// let resumeTime = 0;
@@ -146,7 +146,7 @@
 			}
 
 			video.ontimeupdate = function(){
-				if(video.currentTime) currentTime = video.currentTime;
+				if(video.currentTime) elapsedTime = video.currentTime;
 			}
 
 			video.onerror = function(err){
@@ -189,7 +189,7 @@
 								document.body.removeChild(video);
 								
 								window.removeEventListener("keydown", onKeyDown);
-								start(currentTime);
+								start(elapsedTime);
 								hideError();
 								
 							}else{

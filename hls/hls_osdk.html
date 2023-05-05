@@ -27,12 +27,13 @@
 			top: 0;
 			left: 0;
 			width: 100%;
-			height: 100%;
+			height: auto;
 		}
 		
 		#errorDialogue{
 			position: absolute;
 			color: whitesmoke;
+			background-color: black;
 			font-size: 120px;
 			width:1650px;
 			height:450px;
@@ -51,20 +52,18 @@
 </head>
 
 <body onload="start();">
-	<div>
-		<video></video>
-	</div>
-
 	<div></div><p id="errorDialogue"></p></div>
 
 	<script>
 		var VERSION = "1.1.0";
 
+		let elapsedTime = 0;
+		let maxRetries = 3;
 		let playbackRetryCount = 0;
+		let isPlaybackError = false;
+		let video;
 
 		const errorElement = document.getElementById("errorDialogue");
-
-		console.log(":::: errorElement", errorElement);
 
 		var config = {};
 		location.search.substring(1).split('&').forEach(function(nvp) {
@@ -76,36 +75,18 @@
 		});
 
 		onesdk.init();
-		
-
-		function handleMediaError(hls) {
-			var now = performance.now();
-			if (!recoverDecodingErrorDate || (now - recoverDecodingErrorDate) > 3000) {
-				recoverDecodingErrorDate = performance.now();
-				var msg = "trying to recover from media Error ..."
-				console.warn(msg);
-				hls.recoverMediaError();
-			} else {
-				if (!recoverSwapAudioCodecDate || (now - recoverSwapAudioCodecDate) > 3000) {
-					recoverSwapAudioCodecDate = performance.now();
-					var msg = "trying to swap Audio Codec and recover from media Error ..."
-					console.warn(msg);
-					hls.swapAudioCodec();
-					hls.recoverMediaError();
-				} else {
-					var msg = "cannot recover, last media error recovery failed ..."
-					console.error(msg);
-				}
-			}
-		}
 
 		/**
 		 * Set up HLS player, set logging level and add DRM if configured
 		 */
-		function start() {
-			console.log("config", config);
-			console.log("hls.js example version: " + VERSION);
-			var video = document.querySelector("video");
+		function start(resumeTime) {
+			isPlaybackError = false;
+			video = document.createElement('video');
+			document.body.appendChild(video);
+
+			video.ontimeupdate = function(){
+				if(video.currentTime) elapsedTime = video.currentTime;
+			}
 
 			if (Hls.isSupported()) {
 				var hls = new Hls({
@@ -113,8 +94,6 @@
 					debug: config.libDebug ? true : false,
 				});
 				
-				console.log("hls.js version: " + Hls.version);
-
 				hls.attachMedia(video); // binds videoElement & HLS instance, creates MediaSource & sets it as video source
 
 				hls.on(Hls.Events.MEDIA_ATTACHED, function() {
@@ -124,7 +103,13 @@
 
 					hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
 						console.log("HLS manifest parsed");
-						video.play();
+						video.play().then(function(){
+							playbackRetryCount = 0;
+
+							if(resumeTime){
+								video.currentTime = resumeTime;
+							}
+						});
 					});
 				});
 			} else {
@@ -139,7 +124,7 @@
 				if (data.fatal) {
 					switch (data.type) {
 					case Hls.ErrorTypes.MEDIA_ERROR:
-						handleMediaError(hls);
+						console.error("media error ...");
 						break;
 					case Hls.ErrorTypes.NETWORK_ERROR:
 						console.error("network error ...");
@@ -153,8 +138,9 @@
 			});
 
 			window.addEventListener(onesdk.EVENT_TYPES.EVENT_CONNECTED_DISPLAY_CHANGED, function() {
-				console.log("::::: EVENT_CONNECTED_DISPLAY_CHANGED");
+				video.pause();
 				let messageText;
+				isPlaybackError = true;
 
 				if(!playbackRetryCount)
 					messageText = 'Oops. Something went wrong. Press OK to try again.';
@@ -196,7 +182,7 @@
 								document.body.removeChild(video);
 								
 								window.removeEventListener("keydown", onKeyDown);
-								start(currentTime);
+								start(elapsedTime);
 								hideError();
 								
 							}else{

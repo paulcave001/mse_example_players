@@ -29,6 +29,8 @@
             video{
                 position: fixed;
                 margin:0;
+                width: 100%;
+                height:auto;
                 /* display: block; */
             }
 
@@ -188,6 +190,15 @@
                         if(isPlaybackError){
                             if(playbackRetryCount < maxRetries){
                                 playbackRetryCount++;
+
+                                player.destroy();
+
+                                video.ontimeupdate = null;
+                                video.ondurationchange = null;
+                                video.onprogress = null;
+
+                                document.body.removeChild(video);
+
                                 initPlayer();
 
                             }else{
@@ -215,23 +226,23 @@
                 }
             }
 
-            function destroyPlayer(){
-                if(state !== "DESTROYED"){
-                    state = "DESTROYED";
-                    player.destroy();
+            // function destroyPlayer(){
+            //     if(state !== "DESTROYED"){
+            //         state = "DESTROYED";
+            //         player.destroy();
 
-                    video.ontimeupdate = null;
-                    video.ondurationchange = null;
-                    video.onprogress = null;
+            //         video.ontimeupdate = null;
+            //         video.ondurationchange = null;
+            //         video.onprogress = null;
 
-                    document.body.removeChild(video);
-                }
-            }
+            //         document.body.removeChild(video);
+            //     }
+            // }
 
             function handleError(messageText) {
                 // console.log(":::: handleError", event);
                 isPlaybackError = true;
-                destroyPlayer();
+                // destroyPlayer();
 
                 resumeTime = elapsedTime;
                 

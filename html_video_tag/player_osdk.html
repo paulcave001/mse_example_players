@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
+<!--[if gt IE 8]>      <html class="no-js"> <!--<![endif]-->
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title></title>
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="">
+
+        <style>
+            video{
+                width:100%;
+                height:auto;
+            }
+            
+            #errorDialogue{
+			position: absolute;
+			color: whitesmoke;
+			background-color: black;
+			font-size: 120px;
+			width:1650px;
+			height:450px;
+			margin:140px;
+			top:0;
+			left:0;
+			border: 2px solid lightgray;
+			border-radius: 9px;;
+			display: none;
+		}
+
+		#errorDialogue.show{
+			display: block;
+		}
+        </style>
+    </head>
+    <body>
+        <!--[if lt IE 7]>
+            <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="#">upgrade your browser</a> to improve your experience.</p>
+        <![endif]-->
+        <video id="player" autoplay controls></video>
+        <div></div><p id="errorDialogue"></p></div>
+        <script src="../onesdk/dist/stb/onesdk.js"></script>
+        <!-- <script type="text/javascript"> -->
+        <script type="text/javascript" async defer>
+
+            const errorElement = document.getElementById("errorDialogue");
+            const tearsOfSteelMovie = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4";
+            const bigBuckBunnyMovie = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+            const elephantDreamMovie = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4";
+            const sintelMovie = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4";
+
+            let movies = [tearsOfSteelMovie, bigBuckBunnyMovie, elephantDreamMovie, sintelMovie];
+            
+            const movieIndex = Math.floor(Math.random() * (movies.length));
+            const url = movies[movieIndex];
+            
+            let playbackRetryCount = 0;
+            let maxRetries = 3;
+            let isPlaybackError = false;
+            let elapsedTime = 0;
+            let duration = 0;
+
+            onesdk.init();
+
+            const video = document.getElementById("player");
+            video.src = url;
+
+            video.onerror = function(evt){
+                console.log("::::: evt", evt);
+            }
+
+            video.ondurationchange = function(){
+				duration = video.duration;
+			}
+
+			video.ontimeupdate = function(){
+				if(video.currentTime) elapsedTime = video.currentTime;
+			}
+
+            video.onprogress = function(){
+                console.log(":::: onprogress");
+                playbackRetryCount = 0;
+                isPlaybackError = false;
+            }
+
+            window.addEventListener("keydown", function(evt){
+                let key = evt.key || evt.code;
+
+                switch(key){
+                    case "Enter":
+                        // only re-initialise if error
+                        if(isPlaybackError){
+                            if(playbackRetryCount < maxRetries){
+                                playbackRetryCount++;
+
+                                video.play();
+                                hideError();
+
+                            }else{
+                                window.close();
+                            }
+                        }else video.play();
+                    break;
+                    case "MediaFastForward":
+                        if(duration - elapsedTime > 10)
+                            video.currentTime += 10;
+                    break;
+                    case "MediaRewind":
+                        if(elapsedTime > 10)
+                            video.currentTime -= 10;
+                        else video.currentTime = 0;
+                    break;
+                    case "MediaPlayPause":
+                        if(video.paused)
+                            video.play();
+                        else video.pause();
+                    break;
+                    case "Escape":
+                        window.close();
+                    break;
+                }
+            });
+
+            window.addEventListener(onesdk.EVENT_TYPES.EVENT_CONNECTED_DISPLAY_CHANGED, function() {
+                console.log("::: EVENT_CONNECTED_DISPLAY_CHANGED");
+				video.pause();
+				let messageText;
+				isPlaybackError = true;
+
+				if(!playbackRetryCount)
+					messageText = 'Oops. Something went wrong. Press OK to try again.';
+				else if(playbackRetryCount < maxRetries)
+					messageText = 'That still didn\'t work. Press OK to try again or back to exit.';
+				else
+					messageText = 'Sorry, that still didn\'t work. Please press OK to exit and try again later.';
+
+				showError(messageText);
+			});
+
+            function showError(text){
+				errorElement.textContent = text;
+
+				errorElement.classList.add("show");
+			}
+
+			function hideError(){
+				errorElement.textContent = "";
+
+				errorElement.classList.remove("show");
+			}
+
+            video.play();
+
+        </script>
+    </body>
+</html>
